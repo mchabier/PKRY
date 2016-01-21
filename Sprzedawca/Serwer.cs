@@ -18,13 +18,17 @@ using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.X509;
 using System.Windows.Forms;
+using System.Net.Security;
+using System.Collections;
 /*zeby to zainstalowac tools->NuGet Package Manager ->Package Manager Console : Install-Package BouncyCastle-Ext */
 namespace Sprzedawca
 {
    
     public partial class Serwer : Form
     {
+
         public Socket listener = null;
+        public static System.Security.Cryptography.X509Certificates.X509Certificate serverCertificate = new X509Certificate2("CertyfikatSSLSprzedawca.pfx", "instant");
         public void StartSerwer()
         {
             IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, 1234); //punkt koncowy zdefiniowany
@@ -93,16 +97,29 @@ namespace Sprzedawca
             return decrypted;
         }
 
-     
+        private static Hashtable certificateErrors = new Hashtable();
+
         
+        public static bool ValidateServerCertificate(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            return true; //ufaj kazdemu nawet jak nie podpisany
+        }
+
         public void ObsluzKlienta(object Klient)
         {
             while (true)
             {
                 Socket nowyKlient = (Socket)Klient;
                 NetworkStream stream = new NetworkStream(nowyKlient);
-                BinaryReader br = new BinaryReader(stream);
-                BinaryWriter bw = new BinaryWriter(stream);
+                SslStream sslStream = new SslStream(stream, false);
+                sslStream.AuthenticateAsServer(serverCertificate, false, System.Security.Authentication.SslProtocols.Tls, true);
+                BinaryReader br = new BinaryReader(sslStream);
+                BinaryWriter bw = new BinaryWriter(sslStream);
+               
+              
 
                 //Wczytywanie klucza prywatnego Sprzedającego
                 StreamReader readerKluczPrywatny = new StreamReader("KluczPrywatnySprzedawcy.pem");
@@ -212,8 +229,10 @@ namespace Sprzedawca
                             {
                                 KlientSocket.Connect("127.0.0.1", 1235);
                                 NetworkStream stream1 = new NetworkStream(KlientSocket);
-                                BinaryWriter bw1 = new BinaryWriter(stream1);
-                                BinaryReader br1 = new BinaryReader(stream1);
+                                SslStream sslStream1 = new SslStream(stream1, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+                                sslStream1.AuthenticateAsClient("InstantMessengerServer");
+                                BinaryWriter bw1 = new BinaryWriter(sslStream1);
+                                BinaryReader br1 = new BinaryReader(sslStream1);
 
                                 // Tu jest cała komunikacja z bramą zeby potwierdzic Klienta i rozpoczac proces poboru opłaty
 
@@ -360,8 +379,8 @@ namespace Sprzedawca
 
 
 
-                                KlientSocket.Shutdown(SocketShutdown.Both);
-                                KlientSocket.Close();
+                                //KlientSocket.Shutdown(SocketShutdown.Both);
+                                //KlientSocket.Close();
                             }
                             catch (ArgumentNullException ane)
                             {
