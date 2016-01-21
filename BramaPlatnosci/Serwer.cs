@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -21,6 +22,7 @@ namespace BramaPlatnosci
     public class Serwer
     {
         public Socket listener = null;
+        public static System.Security.Cryptography.X509Certificates.X509Certificate serverCertificate = new X509Certificate2("CertyfikatSSLBramaPlatnosci.pfx", "instant");
         public void StartSerwer()
         {
             //Console.WriteLine("Sdsfsdf");
@@ -92,10 +94,22 @@ namespace BramaPlatnosci
         {
             while (true)
             {
+
                 Socket nowySprzedawca = (Socket)Sprzedawca;
                 NetworkStream stream = new NetworkStream(nowySprzedawca);
-                BinaryReader br = new BinaryReader(stream);
-                BinaryWriter bw = new BinaryWriter(stream);
+                SslStream sslStream = new SslStream(stream, false);
+                try
+                {
+                    sslStream.AuthenticateAsServer(serverCertificate, false, System.Security.Authentication.SslProtocols.Tls, true);
+                }
+                catch (Exception ex)
+                {
+                    string sss = ex.ToString();
+                    Program.brama.WpiszDoTextBoxa(ex.ToString());
+                    
+                }
+                BinaryReader br = new BinaryReader(sslStream);
+                BinaryWriter bw = new BinaryWriter(sslStream);
 
                 //Wczytywanie klucza prywatnego Bramy Tylko dla klienta
                 StreamReader readerKluczPrywatnyBramyTylkoDlaKlienta = new StreamReader("KluczPrywatnyBramyTylkoDlaKlienta.pem");
