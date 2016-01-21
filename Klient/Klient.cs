@@ -4,10 +4,12 @@ using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.X509;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -61,8 +63,17 @@ namespace Klient
             string decrypted = Encoding.UTF8.GetString(decryptEngine.ProcessBlock(bytesToDecrypt, 0, bytesToDecrypt.Length));
             return decrypted;
         }
-       
 
+        private static Hashtable certificateErrors = new Hashtable();
+
+
+        public static bool ValidateServerCertificate(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            return true; //ufaj kazdemu nawet jak nie podpisany
+        }
         public  void StworzKlienta()
         {
             byte[] bufor = new byte[1024];
@@ -90,8 +101,10 @@ namespace Klient
                 {
                     KlientSocket.Connect("127.0.0.1", 1234);
                     NetworkStream stream = new NetworkStream(KlientSocket);
-                    BinaryWriter bw = new BinaryWriter(stream);
-                    BinaryReader br = new BinaryReader(stream);
+                    SslStream sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+                    sslStream.AuthenticateAsClient("InstantMessengerServer");
+                    BinaryWriter bw = new BinaryWriter(sslStream);
+                    BinaryReader br = new BinaryReader(sslStream);
                     //chchchchchhc
                    
                     //rozpoczecie Komunikacji - wysłanie pierwszej Wiadomosci
@@ -221,8 +234,8 @@ namespace Klient
                     }
                     
 
-                    KlientSocket.Shutdown(SocketShutdown.Both);
-                    KlientSocket.Close();
+                    //KlientSocket.Shutdown(SocketShutdown.Both);
+                    //KlientSocket.Close();
                 }
                 catch (ArgumentNullException ane)
                 {
